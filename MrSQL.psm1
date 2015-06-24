@@ -55,7 +55,7 @@
         }
     }
     else {
-        Write-Warning -Message 'SQL PowerShell module or snapin already loaded'
+        Write-Verbose -Message 'SQL PowerShell module or snapin already loaded'
     }
 
 }
