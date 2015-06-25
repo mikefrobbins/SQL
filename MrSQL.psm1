@@ -41,7 +41,7 @@
             Pop-Location
             Write-Verbose -Message "Changing current location to previously stored location: '$((Get-Location).Path)'"
         }
-        elseif (Get-PSSnapin -Registered SqlServerCmdletSnapin100, SqlServerProviderSnapin100 -ErrorAction SilentlyContinue) {
+        elseif (Get-PSSnapin -Name SqlServerCmdletSnapin100, SqlServerProviderSnapin100 -Registered -ErrorAction SilentlyContinue) {
         Write-Verbose -Message 'SQL PowerShell snapin found'
 
             Add-PSSnapin -Name SqlServerCmdletSnapin100, SqlServerProviderSnapin100
