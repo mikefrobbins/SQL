@@ -59,3 +59,108 @@
     }
 
 }
+
+function Invoke-MrSqlDataReader {
+
+<#
+.SYNOPSIS
+    Runs a Select statement query against a SQL Server database.
+ 
+.DESCRIPTION
+    Invoke-MrSqlDataReader is a PowerShell function that is designed to query
+    a SQL Server database using a Select statement without the need for the SQL
+    PowerShell module or snap-in being installed.
+ 
+.PARAMETER ServerInstance
+    The name of an instance of the SQL Server database engine. For default instances,
+    only specify the computer name: "MyComputer". For named instances, use the format
+    "ComputerName\InstanceName".
+ 
+.PARAMETER Database
+    The name of the database to query on the specified SQL Server instance.
+ 
+.PARAMETER Query
+    Specifies one or more Transact-SQL queries to be run.
+
+.PARAMETER Credential
+    SQL Authentication userid and password in the form of a credential object. Warning:
+    when using SQL Server authentication, the password is transmitted across the network
+    in clear text.    
+ 
+.EXAMPLE
+     Invoke-MrSqlDataReader -ServerInstance Server01 -Database Master -Query '
+     select name, database_id, compatibility_level, recovery_model_desc from sys.databases'
+
+.EXAMPLE
+     Invoke-MrSqlDataReader -ServerInstance Server01\NamedInstance -Database Master -Query '
+     select name, database_id, compatibility_level, recovery_model_desc from sys.databases' -Credential (Get-Credential)
+ 
+.INPUTS
+    String
+ 
+.OUTPUTS
+    None
+ 
+.NOTES
+    Author:  Mike F Robbins
+    Website: http://mikefrobbins.com
+    Twitter: @mikefrobbins
+#>
+
+    [CmdletBinding()]
+    param (        
+        [Parameter(Mandatory)]
+        [string]$ServerInstance,
+
+        [Parameter(Mandatory)]
+        [string]$Database,
+        
+        [Parameter(Mandatory,
+                   ValueFromPipeline)]
+        [string[]]$Query,
+        
+        [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty
+    )
+    
+    BEGIN {    
+        if (-not($PSBoundParameters.Credential)) {
+            $connectionString = "Server=$ServerInstance;Database=$Database;Integrated Security=True;"
+        }
+        else {
+            $connectionString = "Server=$ServerInstance;Database=$Database;uid=$($Credential.UserName -replace '^.*\\|@.*$'); pwd=$(($Credential.GetNetworkCredential()).Password);Integrated Security=False;"
+        }
+
+        $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection
+        $connection.ConnectionString = $connectionString
+        $connection.Open()
+        $command = $connection.CreateCommand()
+    }
+
+    PROCESS {
+        foreach ($Q in $Query) {
+            $command.CommandText = $Q
+            try {
+                $result = $command.ExecuteReader()
+            }
+            catch [System.Management.Automation.MethodInvocationException] {
+                Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
+                break
+            }
+            catch {
+                Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
+                continue
+            }
+
+            if ($result) {
+                $dataTable = New-Object -TypeName System.Data.DataTable
+                $dataTable.Load($result)
+                $dataTable
+            }
+        }
+    }
+
+    END {
+        $connection.Close()
+    }
+
+}
