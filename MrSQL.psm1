@@ -99,7 +99,7 @@ function Invoke-MrSqlDataReader {
     String
  
 .OUTPUTS
-    None
+    DataRow
  
 .NOTES
     Author:  Mike F Robbins
