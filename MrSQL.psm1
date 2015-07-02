@@ -164,3 +164,113 @@ function Invoke-MrSqlDataReader {
     }
 
 }
+
+function Find-MrSqlDatabaseChange {
+
+    [CmdletBinding()]
+    param (        
+        [Parameter(Mandatory)]
+        [string]$ServerInstance,
+        
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet('Insert', 'Update', 'Delete')]
+        [string]$TransactionName = 'Delete',
+
+        [Parameter(Mandatory,
+                   ValueFromPipeline)]
+        [string]$Database,
+
+        [ValidateNotNullOrEmpty()]
+        [datetime]$StartTime = (Get-Date).Date,
+
+        [ValidateNotNullOrEmpty()]
+        [datetime]$EndTime = (Get-Date),
+
+        [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty
+    )
+
+    BEGIN {
+        $Params = @{
+            ServerInstance = $ServerInstance
+        }
+        
+        if($PSBoundParameters.Credential) {
+            $Params.Credential = $Credential
+        }
+    }
+
+    PROCESS {
+        $Params.Database = $Database
+
+        $TransactionLogBackups = Invoke-MrSqlDataReader -ServerInstance $ServerInstance -Database msdb -Query "
+        SELECT backupset.backup_set_id, backupset.last_family_number, backupset.database_name, backupset.recovery_model, backupset.type,
+                backupset.position, backupmediafamily.physical_device_name, backupset.backup_start_date, backupset.backup_finish_date
+        FROM backupset
+        INNER JOIN backupmediafamily
+        ON backupset.media_set_id = backupmediafamily.media_set_id
+        WHERE database_name = '$Database'
+        AND type = 'L'"
+
+        $BackupInfo = $TransactionLogBackups.Where({$_.backup_start_date -ge $StartTime -and $_.backup_finish_date -le $EndTime})
+
+        if (($BackupInfo.count) -ne (($BackupInfo | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
+            $BackupSetId = (Compare-Object -ReferenceObject $BackupInfo.backup_set_id -DifferenceObject (
+                            $BackupInfo | Select-Object -ExpandProperty backup_set_id -Unique)).InputObject
+            
+            $BackupSetConsolidated = foreach ($SetId in $BackupSetId) {
+                $BackupSet = $BackupInfo.Where({$_.backup_set_id -in $SetId})
+                [pscustomobject]@{            
+                    backup_set_id = $BackupSet.backup_set_id[0]
+                    last_family_number = $BackupSet.last_family_number[0]
+                    database_name = $BackupSet.database_name[0]
+                    recovery_model = $BackupSet.recovery_model[0]
+                    type = $BackupSet.type[0]
+                    position = $BackupSet.position[0]
+                    physical_device_name = $BackupSet.physical_device_name
+                    backup_start_date = $BackupSet.backup_start_date[0]
+                    backup_finish_date = $BackupSet.backup_finish_date[0]
+                }
+            }
+
+            $BackupInfoCombined = @{}
+            $BackupInfoCombined = $BackupInfo.Where({$_.backup_set_id -notin $BackupSetId})
+            if (-not($BackupInfoCombined)) {
+                $BackupInfoCombined = $BackupSetConsolidated
+            }
+            else {
+                $BackupInfoCombined = $BackupInfoCombined + $BackupSetConsolidated
+            }             
+        }
+        else {
+            $BackupInfoCombined = $BackupInfo
+        }
+
+        foreach ($Backup in $BackupInfoCombined) {                  
+            $Query = "SELECT [Current LSN], Operation, Context, [Transaction ID], [Transaction Name],
+                      Description, [Begin Time], SUser_SName ([Transaction SID]) AS [User]
+                      FROM fn_dump_dblog (NULL,NULL,N'DISK',$($Backup.Position),
+                      $("N$(($Backup.physical_device_name).ForEach({"'$_'"}))" -replace "' '","', N'"),
+                      $((1..(64 - $Backup.last_family_number)).ForEach({'DEFAULT,'})))
+                      WHERE [Transaction Name] = N'$TransactionName'
+                      AND [Begin Time] >= '$(($StartTime).ToString('yyyy/MM/dd HH:mm:ss'))'
+                      AND ([End Time] <= '$(($EndTime).ToString('yyyy/MM/dd HH:mm:ss'))'
+                      OR [End Time] is null)" -replace ',\)',')'
+
+            $Params.Query = $Query
+            Invoke-MrSqlDataReader @Params
+        }
+
+        if ($EndTime -gt ($TransactionLogBackups | Select-Object -Last 1 -ExpandProperty backup_finish_date)) {
+            $Query = "SELECT [Current LSN], Operation, Context, [Transaction ID], [Transaction Name],
+                      Description, [Begin Time], SUser_SName ([Transaction SID]) AS [User]
+                      FROM fn_dblog (NULL, NULL)
+                      WHERE [Transaction Name] = N'$TransactionName'
+                      AND [Begin Time] >= '$(($StartTime).ToString('yyyy/MM/dd HH:mm:ss'))'                      
+                      AND ([End Time] <= '$(($EndTime).ToString('yyyy/MM/dd HH:mm:ss'))'
+                      OR [End Time] is null)"
+            
+            $Params.Query = $Query
+            Invoke-MrSqlDataReader @Params
+        }
+    }   
+}
