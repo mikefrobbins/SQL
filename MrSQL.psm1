@@ -64,23 +64,23 @@ function Invoke-MrSqlDataReader {
 
 <#
 .SYNOPSIS
-    Runs a Select statement query against a SQL Server database.
+    Runs a select statement query against a SQL Server database.
  
 .DESCRIPTION
     Invoke-MrSqlDataReader is a PowerShell function that is designed to query
-    a SQL Server database using a Select statement without the need for the SQL
+    a SQL Server database using a select statement without the need for the SQL
     PowerShell module or snap-in being installed.
  
 .PARAMETER ServerInstance
     The name of an instance of the SQL Server database engine. For default instances,
-    only specify the computer name: "MyComputer". For named instances, use the format
-    "ComputerName\InstanceName".
+    only specify the server name: 'ServerName'. For named instances, use the format
+    'ServerName\InstanceName'.
  
 .PARAMETER Database
     The name of the database to query on the specified SQL Server instance.
  
 .PARAMETER Query
-    Specifies one or more Transact-SQL queries to be run.
+    Specifies one Transact-SQL select statement query to be run.
 
 .PARAMETER Credential
     SQL Authentication userid and password in the form of a credential object.
@@ -90,8 +90,12 @@ function Invoke-MrSqlDataReader {
      select name, database_id, compatibility_level, recovery_model_desc from sys.databases'
 
 .EXAMPLE
-     Invoke-MrSqlDataReader -ServerInstance Server01\NamedInstance -Database Master -Query '
-     select name, database_id, compatibility_level, recovery_model_desc from sys.databases' -Credential (Get-Credential)
+     'select name, database_id, compatibility_level, recovery_model_desc from sys.databases' |
+     Invoke-MrSqlDataReader -ServerInstance Server01 -Database Master
+
+.EXAMPLE
+     'select name, database_id, compatibility_level, recovery_model_desc from sys.databases' |
+     Invoke-MrSqlDataReader -ServerInstance Server01 -Database Master -Credential (Get-Credential)
  
 .INPUTS
     String
@@ -115,7 +119,7 @@ function Invoke-MrSqlDataReader {
         
         [Parameter(Mandatory,
                    ValueFromPipeline)]
-        [string[]]$Query,
+        [string]$Query,
         
         [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty
     )
@@ -147,25 +151,24 @@ function Invoke-MrSqlDataReader {
     }
 
     PROCESS {
-        foreach ($Q in $Query) {
-            $command.CommandText = $Q
-            try {
-                $result = $command.ExecuteReader()
-            }
-            catch [System.Management.Automation.MethodInvocationException] {
-                Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
-                break
-            }
-            catch {
-                Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
-                continue
-            }
+        $command.CommandText = $Query
 
-            if ($result) {
-                $dataTable = New-Object -TypeName System.Data.DataTable
-                $dataTable.Load($result)
-                $dataTable
-            }
+        try {
+            $result = $command.ExecuteReader()
+        }
+        catch [System.Management.Automation.MethodInvocationException] {
+            Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
+            break
+        }
+        catch {
+            Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
+            continue
+        }
+
+        if ($result) {
+            $dataTable = New-Object -TypeName System.Data.DataTable
+            $dataTable.Load($result)
+            $dataTable
         }
     }
 
