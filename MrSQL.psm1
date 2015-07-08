@@ -83,9 +83,7 @@ function Invoke-MrSqlDataReader {
     Specifies one or more Transact-SQL queries to be run.
 
 .PARAMETER Credential
-    SQL Authentication userid and password in the form of a credential object. Warning:
-    when using SQL Server authentication, the password is transmitted across the network
-    in clear text.    
+    SQL Authentication userid and password in the form of a credential object.
  
 .EXAMPLE
      Invoke-MrSqlDataReader -ServerInstance Server01 -Database Master -Query '
@@ -127,12 +125,24 @@ function Invoke-MrSqlDataReader {
             $connectionString = "Server=$ServerInstance;Database=$Database;Integrated Security=True;"
         }
         else {
-            $connectionString = "Server=$ServerInstance;Database=$Database;uid=$($Credential.UserName -replace '^.*\\|@.*$'); pwd=$(($Credential.GetNetworkCredential()).Password);Integrated Security=False;"
+            $connectionString = "Server=$ServerInstance;Database=$Database;Integrated Security=False;"
+            $userid= $Credential.UserName -replace '^.*\\|@.*$'
+            ($password = $credential.Password).MakeReadOnly()
+            $sqlCred = New-Object -TypeName System.Data.SqlClient.SqlCredential($userid, $password)
         }
 
         $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection
         $connection.ConnectionString = $connectionString
-        $connection.Open()
+        $connection.Credential = $sqlCred
+        
+        try {
+            $connection.Open()
+            Write-Verbose -Message "Connection to the $($connection.Database) database on $($connection.DataSource) has been successfully opened."
+        }
+        catch {
+            Throw "An error has occurred. Error details: $_.Exception.Message"
+        }
+
         $command = $connection.CreateCommand()
     }
 
