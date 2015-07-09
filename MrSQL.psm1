@@ -139,27 +139,32 @@ function Invoke-MrSqlDataReader {
         }
 
         $connection.ConnectionString = $connectionString
+        $ErrorActionPreference = 'Stop'
         
         try {
             $connection.Open()
             Write-Verbose -Message "Connection to the $($connection.Database) database on $($connection.DataSource) has been successfully opened."
         }
         catch {
-            Throw "An error has occurred. Error details: $_.Exception.Message"
+            Write-Error -Message "An error has occurred. Error details: $($_.Exception.Message)"
         }
-
+        
+        $ErrorActionPreference = 'Continue'
         $command = $connection.CreateCommand()
     }
 
     PROCESS {
         $command.CommandText = $Query
+        $ErrorActionPreference = 'Stop'
 
         try {
             $result = $command.ExecuteReader()
         }
         catch {
-            Throw "An error has occured. Error Details: $_.Exception.Message"
+            Write-Error -Message "An error has occured. Error Details: $($_.Exception.Message)"
         }
+
+        $ErrorActionPreference = 'Continue'
 
         if ($result) {
             $dataTable = New-Object -TypeName System.Data.DataTable
