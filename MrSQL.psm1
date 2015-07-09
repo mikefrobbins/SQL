@@ -124,7 +124,9 @@ function Invoke-MrSqlDataReader {
         [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty
     )
     
-    BEGIN {    
+    BEGIN {
+        $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection
+
         if (-not($PSBoundParameters.Credential)) {
             $connectionString = "Server=$ServerInstance;Database=$Database;Integrated Security=True;"
         }
@@ -133,11 +135,10 @@ function Invoke-MrSqlDataReader {
             $userid= $Credential.UserName -replace '^.*\\|@.*$'
             ($password = $credential.Password).MakeReadOnly()
             $sqlCred = New-Object -TypeName System.Data.SqlClient.SqlCredential($userid, $password)
+            $connection.Credential = $sqlCred
         }
 
-        $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection
         $connection.ConnectionString = $connectionString
-        $connection.Credential = $sqlCred
         
         try {
             $connection.Open()
@@ -156,13 +157,8 @@ function Invoke-MrSqlDataReader {
         try {
             $result = $command.ExecuteReader()
         }
-        catch [System.Management.Automation.MethodInvocationException] {
-            Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
-            break
-        }
         catch {
-            Write-Warning -Message "An error has occured. Error Details: $_.Exception.Message"
-            continue
+            Throw "An error has occured. Error Details: $_.Exception.Message"
         }
 
         if ($result) {
