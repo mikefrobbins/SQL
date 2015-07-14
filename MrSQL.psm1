@@ -231,10 +231,7 @@ function Find-MrSqlDatabaseChange {
         if (($TransactionLogBackups.count) -ne (($TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
             Write-Verbose -Message 'Transaction log backups were found that are stripped accross multiple backup files'
 
-            $MultiFileBackupSetId = (Compare-Object -ReferenceObject $TransactionLogBackups.backup_set_id -DifferenceObject (
-                                    $TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique)) |
-                                    Select-Object -ExpandProperty InputObject -Unique
-            Write-Verbose -Message "BackupSets $($MultiFileBackupSetId -join ', ') contain transaction log backups that are stripped accross multiple files"
+            $UniqueBackupSetId = $TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique
             
             $BackupInfo = foreach ($SetId in $UniqueBackupSetId) {
                 Write-Verbose -Message "Creating an updated list of transaction log backup files for backup set $($SetId)"
