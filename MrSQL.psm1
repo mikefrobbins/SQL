@@ -214,67 +214,72 @@ function Find-MrSqlDatabaseChange {
     }
 
     PROCESS {
-        $Params.Database = $Database
+        Write-Verbose -Message "Obtaining a list of transaction log backup files for the $Database database"
 
-        $TransactionLogBackups = Invoke-MrSqlDataReader -ServerInstance $ServerInstance -Database msdb -Query "
+        $TransactionLogBackupHistory = Invoke-MrSqlDataReader @Params -Database msdb -Query "
         SELECT backupset.backup_set_id, backupset.last_family_number, backupset.database_name, backupset.recovery_model, backupset.type,
-                backupset.position, backupmediafamily.physical_device_name, backupset.backup_start_date, backupset.backup_finish_date
+               backupset.position, backupmediafamily.physical_device_name, backupset.backup_start_date, backupset.backup_finish_date
         FROM backupset
         INNER JOIN backupmediafamily
         ON backupset.media_set_id = backupmediafamily.media_set_id
         WHERE database_name = '$Database'
         AND type = 'L'"
 
-        $BackupInfo = $TransactionLogBackups.Where({$_.backup_start_date -ge $StartTime -and $_.backup_finish_date -le $EndTime})
+        $TransactionLogBackups = $TransactionLogBackupHistory | Where-Object {$_.backup_start_date -ge $StartTime -and $_.backup_finish_date -le $EndTime}
+        $Params.Database = $Database
+        
+        if (($TransactionLogBackups.count) -ne (($TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
+            Write-Verbose -Message 'Transaction log backups were found that are stripped accross multiple backup files'
 
-        if (($BackupInfo.count) -ne (($BackupInfo | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
-            $BackupSetId = (Compare-Object -ReferenceObject $BackupInfo.backup_set_id -DifferenceObject (
-                            $BackupInfo | Select-Object -ExpandProperty backup_set_id -Unique)).InputObject
+            $MultiFileBackupSetId = (Compare-Object -ReferenceObject $TransactionLogBackups.backup_set_id -DifferenceObject (
+                                    $TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique)) |
+                                    Select-Object -ExpandProperty InputObject -Unique
+            Write-Verbose -Message "BackupSets $($MultiFileBackupSetId -join ', ') contain transaction log backups that are stripped accross multiple files"
             
-            $BackupSetConsolidated = foreach ($SetId in $BackupSetId) {
-                $BackupSet = $BackupInfo.Where({$_.backup_set_id -in $SetId})
+            $BackupInfo = foreach ($SetId in $UniqueBackupSetId) {
+                Write-Verbose -Message "Creating an updated list of transaction log backup files for backup set $($SetId)"
+
+                $BackupSet = $TransactionLogBackups | Where-Object backup_set_id -in $SetId
                 [pscustomobject]@{            
-                    backup_set_id = $BackupSet.backup_set_id[0]
-                    last_family_number = $BackupSet.last_family_number[0]
-                    database_name = $BackupSet.database_name[0]
-                    recovery_model = $BackupSet.recovery_model[0]
-                    type = $BackupSet.type[0]
-                    position = $BackupSet.position[0]
+                    backup_set_id = $BackupSet | Select-Object -First 1 -ExpandProperty backup_set_id
+                    last_family_number = $BackupSet | Select-Object -First 1 -ExpandProperty last_family_number
+                    database_name = $BackupSet | Select-Object -First 1 -ExpandProperty database_name
+                    recovery_model = $BackupSet | Select-Object -First 1 -ExpandProperty recovery_model
+                    type = $BackupSet | Select-Object -First 1 -ExpandProperty type
+                    position = $BackupSet | Select-Object -First 1 -ExpandProperty position
                     physical_device_name = $BackupSet.physical_device_name
-                    backup_start_date = $BackupSet.backup_start_date[0]
-                    backup_finish_date = $BackupSet.backup_finish_date[0]
+                    backup_start_date = $BackupSet | Select-Object -First 1 -ExpandProperty backup_start_date
+                    backup_finish_date = $BackupSet | Select-Object -First 1 -ExpandProperty backup_finish_date
                 }
             }
-
-            $BackupInfoCombined = @{}
-            $BackupInfoCombined = $BackupInfo.Where({$_.backup_set_id -notin $BackupSetId})
-            if (-not($BackupInfoCombined)) {
-                $BackupInfoCombined = $BackupSetConsolidated
-            }
-            else {
-                $BackupInfoCombined = $BackupInfoCombined + $BackupSetConsolidated
-            }             
         }
         else {
-            $BackupInfoCombined = $BackupInfo
+            Write-Verbose -Message 'No transaction log backup sets were found that are stripped accross multiple files'
+            $BackupInfo = $TransactionLogBackups
         }
 
-        foreach ($Backup in $BackupInfoCombined) {                  
+        foreach ($Backup in $BackupInfo) {
+            Write-Verbose -Message "Building a query to locate the $TransactionName operations in transaction log backup set $($Backup.backup_set_id)"
+                            
             $Query = "SELECT [Current LSN], Operation, Context, [Transaction ID], [Transaction Name],
                       Description, [Begin Time], SUser_SName ([Transaction SID]) AS [User]
                       FROM fn_dump_dblog (NULL,NULL,N'DISK',$($Backup.Position),
-                      $("N$(($Backup.physical_device_name).ForEach({"'$_'"}))" -replace "' '","', N'"),
-                      $((1..(64 - $Backup.last_family_number)).ForEach({'DEFAULT,'})))
+                      $("N$(($Backup.physical_device_name) | ForEach-Object {"'$_'"})" -replace "' '","', N'"),
+                      $((1..(64 - $Backup.last_family_number)) | ForEach-Object {'DEFAULT,'}))
                       WHERE [Transaction Name] = N'$TransactionName'
                       AND [Begin Time] >= '$(($StartTime).ToString('yyyy/MM/dd HH:mm:ss'))'
                       AND ([End Time] <= '$(($EndTime).ToString('yyyy/MM/dd HH:mm:ss'))'
                       OR [End Time] is null)" -replace ',\)',')'
 
             $Params.Query = $Query
+
+            Write-Verbose -Message "Executing the query for transaction log backup set $($Backup.backup_set_id)"
             Invoke-MrSqlDataReader @Params
         }
 
-        if ($EndTime -gt ($TransactionLogBackups | Select-Object -Last 1 -ExpandProperty backup_finish_date)) {
+        if ($EndTime -gt ($TransactionLogBackupHistory | Select-Object -Last 1 -ExpandProperty backup_finish_date)) {
+            Write-Verbose -Message "Building a query to locate the $TransactionName operations in the active transaction log for the $Database database"
+
             $Query = "SELECT [Current LSN], Operation, Context, [Transaction ID], [Transaction Name],
                       Description, [Begin Time], SUser_SName ([Transaction SID]) AS [User]
                       FROM fn_dblog (NULL, NULL)
@@ -284,6 +289,8 @@ function Find-MrSqlDatabaseChange {
                       OR [End Time] is null)"
             
             $Params.Query = $Query
+
+            Write-Verbose -Message "Executing the query for the active transaction log for the $Database database"
             Invoke-MrSqlDataReader @Params
         }
     }   
