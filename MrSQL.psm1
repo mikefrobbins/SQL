@@ -181,6 +181,64 @@ function Invoke-MrSqlDataReader {
 
 function Find-MrSqlDatabaseChange {
 
+<#
+.SYNOPSIS
+    Queries the active transaction log and transaction log backup file(s) for
+    insert, update, or delete operations on the specified database.
+ 
+.DESCRIPTION
+    Find-MrSqlDatabaseChange is a PowerShell function that is designed to query
+    the active transaction log and transaction log backups for either insert,
+    update, or delete operations that occurred on the specified database within
+    the specified datetime range. The Invoke-MrSqlDataReader function which is
+    also part of the MrSQL script module is required.
+ 
+.PARAMETER ServerInstance
+    The name of an instance of the SQL Server database engine. For default
+    instances, only specify the server name: 'ServerName'. For named instances,
+    use the format 'ServerName\InstanceName'.
+
+.PARAMETER TransactionName
+    The type of transaction to search for. Valid values are insert, update, or
+    delete. The default value is 'Delete'.
+ 
+.PARAMETER Database
+    The name of the database to query the transaction log for.
+
+.PARAMETER StartTime
+    The beginning datetime to start searching from. The default is at the
+    beginning of the current day.
+
+.PARAMETER EndTime
+    The ending datetime to stop searching at. The default is at the current
+    datetime (now).
+
+.PARAMETER Credential
+    SQL Authentication userid and password in the form of a credential object.
+ 
+.EXAMPLE
+     Find-MrSqlDatabaseChange -ServerInstance sql04 -Database pubs
+
+.EXAMPLE
+     Find-MrSqlDatabaseChange -ServerInstance sql04 -TransactionName Update `
+     -Database Northwind -StartTime (Get-Date).AddDays(-14) `
+     -EndTime (Get-Date).AddDays(-7) -Credential (Get-Credential)
+
+.EXAMPLE
+     'AdventureWorks2012' | Find-MrSqlDatabaseChange -ServerInstance sql02\qa
+ 
+.INPUTS
+    String
+ 
+.OUTPUTS
+    DataRow
+ 
+.NOTES
+    Author:  Mike F Robbins
+    Website: http://mikefrobbins.com
+    Twitter: @mikefrobbins
+#>
+
     [CmdletBinding()]
     param (        
         [Parameter(Mandatory)]
@@ -229,7 +287,7 @@ function Find-MrSqlDatabaseChange {
         $Params.Database = $Database
         
         if (($TransactionLogBackups.count) -ne (($TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
-            Write-Verbose -Message 'Transaction log backups were found that are stripped accross multiple backup files'
+            Write-Verbose -Message 'Transaction log backups were found that are striped accross multiple backup files'
 
             $UniqueBackupSetId = $TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique
             
@@ -251,7 +309,7 @@ function Find-MrSqlDatabaseChange {
             }
         }
         else {
-            Write-Verbose -Message 'No transaction log backup sets were found that are stripped accross multiple files'
+            Write-Verbose -Message 'No transaction log backup sets were found that are striped accross multiple files'
             $BackupInfo = $TransactionLogBackups
         }
 
