@@ -244,7 +244,6 @@ function Find-MrSqlDatabaseChange {
         [Parameter(Mandatory)]
         [string]$ServerInstance,
         
-        [ValidateNotNullOrEmpty()]
         [ValidateSet('Insert', 'Update', 'Delete')]
         [string]$TransactionName = 'Delete',
 
@@ -276,14 +275,15 @@ function Find-MrSqlDatabaseChange {
 
         $TransactionLogBackupHistory = Invoke-MrSqlDataReader @Params -Database msdb -Query "
         SELECT backupset.backup_set_id, backupset.last_family_number, backupset.database_name, backupset.recovery_model, backupset.type,
-               backupset.position, backupmediafamily.physical_device_name, backupset.backup_start_date, backupset.backup_finish_date
+        backupset.position, backupmediafamily.physical_device_name, backupset.backup_start_date, backupset.backup_finish_date
         FROM backupset
         INNER JOIN backupmediafamily
         ON backupset.media_set_id = backupmediafamily.media_set_id
         WHERE database_name = '$Database'
-        AND type = 'L'"
+        AND type = 'L'
+        AND backup_start_date >= '$StartTime'"
 
-        $TransactionLogBackups = $TransactionLogBackupHistory | Where-Object {$_.backup_start_date -ge $StartTime -and $_.backup_finish_date -le $EndTime}
+        $TransactionLogBackups = $TransactionLogBackupHistory | Where-Object backup_finish_date -le $EndTime
         $Params.Database = $Database
         
         if (($TransactionLogBackups.count) -ne (($TransactionLogBackups | Select-Object -ExpandProperty backup_set_id -Unique).count)) {
