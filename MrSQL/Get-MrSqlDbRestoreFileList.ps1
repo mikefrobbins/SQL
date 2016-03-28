@@ -4,7 +4,9 @@
         [Parameter(Mandatory)]
         [string]$ServerInstance,
 
-        [Parameter(ValueFromPipeline)]
+        [Parameter(ValueFromPipeline,
+                   ValueFromPipelineByPropertyName)]
+        [Alias('physical_device_name')]
         [string]$BackupFilePath
     )
 
