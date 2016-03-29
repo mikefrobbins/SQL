@@ -9,7 +9,9 @@
 
         [string]$DatabasePath,
 
-        [Parameter(ValueFromPipeline)]
+        [Parameter(ValueFromPipeline,
+                   ValueFromPipelineByPropertyName)]
+        [Alias('physical_device_name')]
         [string[]]$BackupFilePath        
     )
 
