@@ -1,6 +1,38 @@
 ﻿#Requires -Version 3.0
 function Backup-MrSqlDatabase {
 
+<#
+.SYNOPSIS
+    Performs a full database backup on one of more SQL Server databases.
+ 
+.DESCRIPTION
+    Backup-MrSqlDatabase is an advanced function that performs a full database backup of
+    one or more specified databases.
+ 
+.PARAMETER ComputerName
+    Computer name of the SQL Server to perform the backups on.
+ 
+ .PARAMETER InstanceName
+    Instance name of the SQL Server to perform the database backups on.
+
+.PARAMETER DatabaseName
+    One or more database names to backup.
+
+.EXAMPLE
+     Backup-MrSqlDatabase -ComputerName SQL01 -InstanceName Prod -DatabaseName Master
+
+.INPUTS
+    String
+ 
+.OUTPUTS
+    None
+ 
+.NOTES
+    Author:  Mike F Robbins
+    Website: http://mikefrobbins.com
+    Twitter: @mikefrobbins
+#>
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory,
