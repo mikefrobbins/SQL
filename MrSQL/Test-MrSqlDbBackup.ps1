@@ -20,15 +20,17 @@ function Test-MrSqlDbBackup {
     PROCESS {
         foreach ($BackupFile in $BackupFilePath) {
             try {
-                $FileList = Get-MrSqlDbRestoreFileList -ServerInstance $ServerInstance -BackupFilePath $BackupFile -ErrorAction Stop
+                $BackupInfo = Invoke-Sqlcmd -ServerInstance $ServerInstance -Query "
+                RESTORE VERIFYONLY FROM DISK = '$BackupFile' WITH FILE = $FileNumber" -Verbose -ErrorAction Stop 4>&1
             }
-            catch {
-                Write-Warning -Message 'An unexpected error has occurred'
+            catch [Microsoft.SqlServer.Management.PowerShell.SqlPowerShellSqlExecutionException] {
+                Write-Warning -Message $_.Exception.Message
                 Continue
             }
-
-            $BackupInfo = (Invoke-Sqlcmd -ServerInstance $ServerInstance -Query "
-            RESTORE VERIFYONLY FROM DISK = '$BackupFile' WITH FILE = $FileNumber" -Verbose | Out-Null) 2>&1 4>&1
+            catch {
+                Write-Error -Message $_.Exception.Message
+                Break
+            }
         
             if ($BackupInfo -like '*The backup set on file ? is valid*') {
                 $Valid = $true
@@ -38,6 +40,8 @@ function Test-MrSqlDbBackup {
             }
 
             if ($PSBoundParameters.Detailed) {
+                $FileList = Get-MrSqlDbRestoreFileList -ServerInstance $ServerInstance -BackupFilePath $BackupFile
+
                 [pscustomobject]@{
                     DatabaseName = ($FileList | Where-Object Type -eq Data).LogicalName
                     BackupFile = $BackupFile -replace '^.*\\'
