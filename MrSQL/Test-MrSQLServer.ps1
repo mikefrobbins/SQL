@@ -13,9 +13,14 @@ function Test-MrSQLServer {
         foreach ($Computer in $ComputerName) {
 
             Describe "Validation of a SQL Server: $Computer" {
+
+                $Params = @()
+                if ($PSBoundParameters.Credential) {
+                    $Params.Credential = $Credential
+                }
     
                 try {
-                    $Session = New-PSSession -ComputerName $Computer -Credential $Cred -ErrorAction Stop
+                    $Session = New-PSSession -ComputerName $Computer @Params -ErrorAction Stop
                 }
                 catch {
                     Write-Warning -Message "Unable to connect. Aborting Pester tests for computer: '$Computer'."
@@ -48,7 +53,7 @@ function Test-MrSQLServer {
                         else {
                             Throw 'SQL PowerShell Snapin or Module not found'
                         }
-                        Invoke-SqlCmd -ServerInstance $ServerName -Database Master -Query "select name from sys.databases where name = 'master'"
+                        Invoke-SqlCmd -Database Master -Query "select name from sys.databases where name = 'master'"
                     }
                 ).name |
                     Should be 'master'
