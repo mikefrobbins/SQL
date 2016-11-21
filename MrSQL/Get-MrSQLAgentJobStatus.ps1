@@ -1,4 +1,4 @@
-﻿#Requires -Version 3.0 -Modules MrSQL
+﻿#Requires -Version 3.0
 function Get-MrSQLAgentJobStatus {
 
 <#
