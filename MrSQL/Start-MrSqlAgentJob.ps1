@@ -56,8 +56,7 @@ function Start-MrSqlAgentJob {
     
     BEGIN {
 
-        [string]$Database = 'msdb'
-
+        $Database = 'msdb'
         $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection
 
         if (-not($PSBoundParameters.Credential)) {
@@ -89,7 +88,7 @@ function Start-MrSqlAgentJob {
 
     PROCESS {
 
-        [string]$Query = "EXEC dbo.sp_start_job N'$Name'"        
+        $Query = "EXEC dbo.sp_start_job N'$Name'"        
         $command.CommandText = $Query
         $ErrorActionPreference = 'Stop'
 
