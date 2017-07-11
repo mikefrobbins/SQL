@@ -2,12 +2,10 @@
 function Get-MrSqlVersion {
     
     [CmdletBinding()]
-    param ( 
-
+    param (
         [ValidateNotNullOrEmpty()]
         [Parameter(ValueFromPipeline)] 
-        [string]$ServerInstance =$env:COMPUTERNAME
- 
+        [string]$ServerInstance =$env:COMPUTERNAME 
     ) 
     
     BEGIN {
@@ -24,12 +22,9 @@ function Get-MrSqlVersion {
                         '12.0' {'SQL Server 2014'; break}  
                         '11.0' {'SQL Server 2012'; break}  
                         '10.5' {'SQL Server 2008 R2'; break}  
-                        '10.0' {'SQL Server 2008'; break} 
-                        '13.0' {'SQL Server 2016 SP1'; break}  
-                        '12.0' {'SQL Server 2014 SP2'; break}  
-                        '11.0' {'SQL Server 2012 SP3'; break}  
-                        '10.5' {'SQL Server 2008 R2 SP3'; break}  
-                        '10.0' {'SQL Server 2008 SP4'; break}  
+                        '10.0' {'SQL Server 2008'; break}
+                        '9.00' {'SQL Server 2005'; break}
+                        default {'unknown'}
                 }
             }
             catch {
