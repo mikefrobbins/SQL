@@ -1,10 +1,14 @@
 #Source: https://gallery.technet.microsoft.com/ScriptCenter/c193ed1a-9152-4bda-b5c0-acd044e68b2c/
 
+Import-MrSqlSmo
+
+<#
 try {add-type -AssemblyName "Microsoft.SqlServer.ConnectionInfo, Version=10.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91" -EA Stop}
 catch {add-type -AssemblyName "Microsoft.SqlServer.ConnectionInfo"}
 
 try {add-type -AssemblyName "Microsoft.SqlServer.Smo, Version=10.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91" -EA Stop} 
 catch {add-type -AssemblyName "Microsoft.SqlServer.Smo"} 
+#>
 
 ####################### 
 function Get-SqlType 
